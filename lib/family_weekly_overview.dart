@@ -227,7 +227,7 @@ class FamilyWeeklyOverview extends StatelessWidget {
               ],
               _metricPill(
                 icon: Icons.pie_chart_outline,
-                label: '${totalDaysWithData}/7 active',
+                label: '$totalDaysWithData/7 active',
                 color: olive,
                 bgColor: const Color(0xFFF2F4EE),
               ),
