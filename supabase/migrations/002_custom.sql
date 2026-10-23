@@ -23,6 +23,15 @@ do $$ begin alter publication supabase_realtime add table elders; exception when
 insert into questions(elder_id, position, text) values
  ('00000000-0000-0000-0000-000000000001', 1, 'Have you eaten your food?'),
  ('00000000-0000-0000-0000-000000000001', 2, 'Have you taken your medicines on time?');
+
+-- Audio storage bucket for Malayalam voice prompts
+insert into storage.buckets (id, name, public) values ('audio-prompts', 'audio-prompts', true)
+on conflict (id) do nothing;
+
+create policy "Public Audio Access" on storage.objects for select using (bucket_id = 'audio-prompts');
+create policy "Allow Audio Uploads" on storage.objects for insert with check (bucket_id = 'audio-prompts');
+create policy "Allow Audio Updates" on storage.objects for update using (bucket_id = 'audio-prompts');
+
 -- Server timer: every minute, ask run-schedules to place due calls. Replace SECRET with your WEBHOOK_SECRET.
 create extension if not exists pg_net;
 select cron.schedule('koode-run-schedules','* * * * *',

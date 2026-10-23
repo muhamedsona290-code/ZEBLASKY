@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'config.dart';
 import 'main.dart';
+import 'voice_recorder_widget.dart';
 
 class CustomizeScreen extends StatelessWidget {
   const CustomizeScreen({super.key});
@@ -26,6 +27,9 @@ class _Questions extends StatelessWidget {
           return ListView(padding: const EdgeInsets.all(16), children: [
             const Text('Amma is asked these in order. Keys on her phone: press the number shown for each answer.'),
             for (var i = 0; i < qs.length; i++) Card(child: ListTile(
+              leading: qs[i]['audio_url'] != null && (qs[i]['audio_url'] as String).isNotEmpty
+                  ? const Tooltip(message: 'Voice recording attached', child: Icon(Icons.mic, color: Color(0xFF2E7D32)))
+                  : const Icon(Icons.help_outline, color: Color(0xFF626B68)),
               title: Text('${i + 1}. ${qs[i]['text']}'),
               subtitle: Text((qs[i]['options'] as List).map((o) => '${o['key']} = ${o['label']}${o['concern'] == true ? ' (alert)' : ''}').join('  ·  ')),
               onTap: () => _edit(c, q: qs[i], pos: qs[i]['position']),
@@ -37,24 +41,57 @@ class _Questions extends StatelessWidget {
       );
 
   Future<void> _edit(BuildContext c, {Map<String, dynamic>? q, required int pos}) async {
-    final text = TextEditingController(text: q?['text'] ?? ''), audio = TextEditingController(text: q?['audio_url'] ?? '');
+    final text = TextEditingController(text: q?['text'] ?? '');
+    String? recordedAudio = q?['audio_url'];
     final opts = q == null
         ? [{'key': '1', 'label': 'Yes', 'concern': false}, {'key': '2', 'label': 'No', 'concern': true}]
         : (q['options'] as List).map((o) => Map<String, dynamic>.from(o)).toList();
+
+    const presets = [
+      'Food kazhicho? (Have you eaten food?)',
+      'Medicine edutho? (Have you taken your medicines?)',
+      'Vellam kudicho? (Did you drink enough water?)',
+      'Sugamano? (Are you doing well?)',
+    ];
+
     await showDialog(context: c, builder: (_) => StatefulBuilder(builder: (c, set) => AlertDialog(
       title: Text(q == null ? 'New question' : 'Edit question'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: text, decoration: const InputDecoration(labelText: 'Question'), maxLines: null),
-        TextField(controller: audio, decoration: const InputDecoration(labelText: 'Malayalam audio URL (optional)')),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Quick Malayalam presets:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF343B2D))),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final p in presets)
+              ActionChip(
+                label: Text(p.split(' (')[0], style: const TextStyle(fontSize: 12)),
+                onPressed: () => set(() => text.text = p),
+              ),
+          ],
+        ),
         const SizedBox(height: 12),
-        for (var i = 0; i < opts.length; i++) Row(children: [
-          DropdownButton<String>(value: opts[i]['key'], items: [for (var k = 1; k <= 9; k++) DropdownMenuItem(value: '$k', child: Text('$k'))], onChanged: (v) => set(() => opts[i]['key'] = v)),
-          const SizedBox(width: 8),
-          Expanded(child: TextFormField(initialValue: opts[i]['label'], decoration: const InputDecoration(hintText: 'Answer'), onChanged: (v) => opts[i]['label'] = v)),
-          Tooltip(message: 'Alert family if chosen', child: Checkbox(value: opts[i]['concern'] == true, onChanged: (v) => set(() => opts[i]['concern'] = v))),
-          if (opts.length > 1) IconButton(icon: const Icon(Icons.close), onPressed: () => set(() => opts.removeAt(i))),
-        ]),
-        if (opts.length < 9) TextButton.icon(icon: const Icon(Icons.add), label: const Text('Add answer'), onPressed: () {
+        TextField(controller: text, decoration: const InputDecoration(labelText: 'Question prompt', hintText: 'e.g. Food kazhicho?', border: OutlineInputBorder()), maxLines: 2),
+        const SizedBox(height: 16),
+        VoiceRecorderWidget(
+          initialAudioUrl: recordedAudio,
+          onAudioChanged: (url) => recordedAudio = url,
+        ),
+        const SizedBox(height: 16),
+        const Text('Keypad Answers (1 to 9):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF343B2D))),
+        const SizedBox(height: 8),
+        for (var i = 0; i < opts.length; i++) Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Row(children: [
+            DropdownButton<String>(value: opts[i]['key'], items: [for (var k = 1; k <= 9; k++) DropdownMenuItem(value: '$k', child: Text('$k'))], onChanged: (v) => set(() => opts[i]['key'] = v)),
+            const SizedBox(width: 8),
+            Expanded(child: TextFormField(initialValue: opts[i]['label'], decoration: const InputDecoration(hintText: 'Answer label (e.g. Yes / No)', border: OutlineInputBorder()), onChanged: (v) => opts[i]['label'] = v)),
+            const SizedBox(width: 4),
+            Tooltip(message: 'Alert family if chosen', child: Checkbox(value: opts[i]['concern'] == true, onChanged: (v) => set(() => opts[i]['concern'] = v))),
+            if (opts.length > 1) IconButton(icon: const Icon(Icons.close), onPressed: () => set(() => opts.removeAt(i))),
+          ]),
+        ),
+        if (opts.length < 9) TextButton.icon(icon: const Icon(Icons.add), label: const Text('Add answer option'), onPressed: () {
           final used = opts.map((o) => o['key']).toSet();
           set(() => opts.add({'key': [for (var k = 1; k <= 9; k++) '$k'].firstWhere((k) => !used.contains(k)), 'label': '', 'concern': false}));
         }),
@@ -66,7 +103,7 @@ class _Questions extends StatelessWidget {
           if (text.text.trim().isEmpty || opts.any((o) => (o['label'] as String).trim().isEmpty) || keys.toSet().length != keys.length) {
             ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content: Text('Fill the question, every answer, and use each key once.'))); return;
           }
-          final row = {'text': text.text.trim(), 'audio_url': audio.text.trim().isEmpty ? null : audio.text.trim(), 'options': opts};
+          final row = {'text': text.text.trim(), 'audio_url': recordedAudio, 'options': opts};
           q == null ? await db.from('questions').insert({...row, 'elder_id': elderId, 'position': pos}) : await db.from('questions').update(row).eq('id', q['id']);
           if (c.mounted) Navigator.pop(c);
         }, child: const Text('Save')),

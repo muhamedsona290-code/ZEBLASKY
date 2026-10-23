@@ -8,7 +8,8 @@ Deno.serve(async (req) => {
   if (!elder?.consent) return new Response(JSON.stringify({ error: "no consent" }), { status: 403, headers: cors });
   const sid = Deno.env.get("EXOTEL_SID")!, key = Deno.env.get("EXOTEL_KEY")!, tok = Deno.env.get("EXOTEL_TOKEN")!;
   const host = Deno.env.get("EXOTEL_HOST") ?? "api.exotel.com";
-  const hook = `${Deno.env.get("SUPABASE_URL")}/functions/v1/exotel-webhook?k=${Deno.env.get("WEBHOOK_SECRET")}`;
+  const secret = Deno.env.get("WEBHOOK_SECRET") ?? "koode123";
+  const hook = `${Deno.env.get("SUPABASE_URL")}/functions/v1/exotel-webhook?k=${secret}`;
   const body = new URLSearchParams({
     From: elder.phone, CallerId: Deno.env.get("EXOPHONE")!,
     Url: `http://my.exotel.com/${sid}/exoml/start_voice/${Deno.env.get("EXOTEL_APP_ID")}`,

@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -20,6 +21,30 @@ class _E extends State<ElderScreen> {
   int _qIdx = 0;
   bool _hadConcern = false;
   String? _ivrPrompt;
+  late final AudioPlayer _audioPlayer;
+
+  @override
+  void initState() {
+    super.initState();
+    _audioPlayer = AudioPlayer();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _playPrompt(String? audioUrl) {
+    if (audioUrl == null || audioUrl.isEmpty) return;
+    try {
+      if (audioUrl.startsWith('http')) {
+        _audioPlayer.play(UrlSource(audioUrl));
+      } else {
+        _audioPlayer.play(DeviceFileSource(audioUrl));
+      }
+    } catch (_) {}
+  }
 
   Future<void> run(Future<void> Function() f, String ok) async {
     if (busy) return; // prevent duplicate submissions
@@ -66,10 +91,14 @@ class _E extends State<ElderScreen> {
         _hadConcern = false;
         _ivrPrompt = null;
       });
+      if (qs.isNotEmpty) {
+        _playPrompt(qs[0]['audio_url']?.toString());
+      }
     }
   }
 
   Future<void> _declineOrHangup(Map<String, dynamic> call) async {
+    _audioPlayer.stop();
     HapticFeedback.lightImpact();
     final id = call['id'] as String;
     final wasAnswered = _answered && _activeCallId == id;
@@ -142,6 +171,7 @@ class _E extends State<ElderScreen> {
             _qIdx++;
             _ivrPrompt = null;
           });
+          _playPrompt(_questions[_qIdx]['audio_url']?.toString());
         }
       } else {
         await db.from('checkins').update({
@@ -314,7 +344,7 @@ class _E extends State<ElderScreen> {
               final last = (s.data?.isNotEmpty ?? false) ? s.data!.first : null;
               final activeCall = last != null &&
                       last['result'] == 'PENDING' &&
-                      (['INITIATED', 'SCHEDULED', 'ANSWERED'].contains(last['call_status']))
+                      (['RINGING', 'INITIATED', 'SCHEDULED', 'ANSWERED'].contains(last['call_status']))
                   ? last
                   : null;
               final t = last == null ? null : DateTime.parse(last['created_at']).toLocal();
