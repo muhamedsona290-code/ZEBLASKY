@@ -87,5 +87,3 @@ Deno.serve(async (req) => {
   const q = next[0];
   return json({ done: false, question: { id: q.id, text: q.text, audio_url: q.audio_url, options: q.options }, next_url: `${base}&qid=${q.id}` });
 });
-
-});
