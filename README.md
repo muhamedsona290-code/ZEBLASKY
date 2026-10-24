@@ -1,4 +1,4 @@
-# കൂടെ · KOODE 💚
+# കൂടെ · KOODE 
 > **Care Beyond Distance, Connected by a Call.**  
 > An automated elder check-in and emergency escalation platform bridging cloud intelligence with cellular GSM telephony.
 
@@ -9,7 +9,7 @@
 
 ---
 
-## 📌 Overview
+##  Overview
 
 **Koode (കൂടെ)** is designed for elderly parents and grandparents living independently in India. Unlike conventional apps that require seniors to learn smartphone interfaces and maintain internet connectivity, Koode reaches elders through **automated cellular phone calls in Malayalam**. 
 
@@ -20,7 +20,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-## 🧭 Repository Branch Guide
+## Repository Branch Guide
 
 | Branch | Focus | Key Deliverables |
 |:---|:---|:---|
@@ -30,7 +30,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-## 🏗️ Technical Architecture
+##  Technical Architecture
 
 ```
                        ┌──────────────────────────────┐
@@ -60,7 +60,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-## 🌟 Core Working Features (`main`)
+## Core Working Features (`main`)
 
 ### 1. Cellular GSM Telephony (Exotel IVR)
 - **Direct SIM Dialing:** Dispatches real telephone calls over cellular networks from an Exotel ExoPhone (`09513886363`) directly to the elder's phone.
@@ -96,7 +96,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-## ⚡ 2-Minute Judge Walkthrough
+##  2-Minute Judge Walkthrough
 
 ### Mode A: Real Cellular Call Test
 1. Launch app (`flutter run`) $\rightarrow$ tap **Family Phone**.
@@ -112,7 +112,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-## 🚀 Quick Setup
+##  Quick Setup
 
 1. **Database:** Run `supabase/migrations/001_koode.sql` and `002_custom.sql` in Supabase SQL Editor.
 2. **Secrets:** In Supabase **Project Settings $\rightarrow$ Edge Functions $\rightarrow$ Secrets**, configure:
