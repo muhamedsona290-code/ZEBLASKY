@@ -5,7 +5,7 @@
 
 ---
 
-## 🌿 System Overview
+##  System Overview
 
 Seniors often live alone and shouldn't need complex apps, smartphones, or high-speed data to stay safe. Koode automates routine daily check-ins ("Have you eaten?", "Have you taken your medicine?") through **cellular GSM phone calls** using **Exotel IVR** and **Malayalam voice prompts**. Grandparents simply answer on their normal phone keypad:
 
@@ -15,7 +15,7 @@ Seniors often live alone and shouldn't need complex apps, smartphones, or high-s
 
 ---
 
-## 🔀 Repository Branch Guide
+##  Repository Branch Guide
 
 This project is organized across dedicated branches:
 
@@ -27,7 +27,7 @@ This project is organized across dedicated branches:
 
 ---
 
-## 🚀 Key Features in the `main` Branch
+##  Key Features in the `main` Branch
 
 ### 1. Cellular GSM Calling via Exotel IVR
 - **Real Phone Calls:** Initiates outbound telecom calls directly to physical SIM cards (Airtel, Jio, Vi, BSNL) from an Exotel virtual ExoPhone.
@@ -64,7 +64,7 @@ This project is organized across dedicated branches:
 
 ---
 
-## 🏗️ Architecture
+## 🏗️Architecture
 
 ```
                        ┌────────────────────────┐
@@ -92,7 +92,7 @@ This project is organized across dedicated branches:
 
 ---
 
-## 🗄️ Database Schema
+##  Database Schema
 
 - **`elders`**: Core profile, phone number, consent flags, and escalation settings.
 - **`checkins`**: History of all initiated calls, timestamps, call status (`INITIATED`, `ANSWERED`, `COMPLETED`), and results (`FINE`, `CONCERN`, `PENDING`).
@@ -103,7 +103,7 @@ This project is organized across dedicated branches:
 
 ---
 
-## ⚙️ Quick Start Setup
+## Quick Start Setup
 
 ### 1. Database Setup
 Execute the idempotent SQL migration scripts in your **Supabase SQL Editor**:
