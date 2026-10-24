@@ -23,7 +23,8 @@ class _F extends State<FamilyScreen> {
   @override
   void initState() {
     super.initState();
-    _schedTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkDueSchedules());
+    _checkDueSchedules();
+    _schedTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkDueSchedules());
   }
 
   @override
@@ -35,36 +36,123 @@ class _F extends State<FamilyScreen> {
   Future<void> _checkDueSchedules() async {
     try {
       final nowIso = DateTime.now().toUtc().toIso8601String();
-      final due = await db.from('call_schedules').select().eq('elder_id', elderId).eq('active', true).lte('next_run_at', nowIso).limit(5);
+      final due = await db
+          .from('call_schedules')
+          .select()
+          .eq('elder_id', elderId)
+          .eq('active', true)
+          .lte('next_run_at', nowIso)
+          .limit(5);
+
       for (final s in due) {
-        final done = (s['runs_done'] as int) + 1;
-        final next = DateTime.parse(s['next_run_at']).add(Duration(minutes: s['interval_minutes'] as int)).toUtc().toIso8601String();
-        final claimed = await db.from('call_schedules')
-            .update({'runs_done': done, 'next_run_at': next, 'active': done < (s['repeat_count'] as int)})
-            .eq('id', s['id']).eq('next_run_at', s['next_run_at']).select();
-        if (claimed.isNotEmpty) {
-          await callNow(fromSchedule: true);
-        }
+        final done = ((s['runs_done'] as num?)?.toInt() ?? 0) + 1;
+        final intervalMin = (s['interval_minutes'] as num?)?.toInt() ?? 1440;
+        final repeatCount = (s['repeat_count'] as num?)?.toInt() ?? 1;
+
+        final rawNext = s['next_run_at'] != null ? DateTime.tryParse(s['next_run_at']) : null;
+        final baseTime = rawNext ?? DateTime.now();
+        final nextIso = baseTime.add(Duration(minutes: intervalMin)).toUtc().toIso8601String();
+
+        await db.from('call_schedules').update({
+          'runs_done': done,
+          'next_run_at': nextIso,
+          'active': done < repeatCount,
+        }).eq('id', s['id']);
+
+        await callNow(fromSchedule: true);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Schedule check exception: $e');
+    }
   }
 
   Future<void> callNow({bool fromSchedule = false}) async {
-    say(fromSchedule ? 'Scheduled check-in call ringing on Elder phone…' : 'Ringing Elder phone…');
+    say(fromSchedule ? 'Initiating scheduled cellular call…' : 'Initiating cellular call to Elder…');
     bool exotelPlaced = false;
+    String? exotelError;
+
     try {
       final res = await db.functions.invoke('start-call', body: {'elder_id': elderId});
-      if (res.status == 200) exotelPlaced = true;
-    } catch (_) {}
-    if (!exotelPlaced) {
-      await db.from('checkins').insert({
-        'elder_id': elderId,
-        'source': fromSchedule ? 'scheduled_call' : 'call',
-        'call_status': 'INITIATED',
-        'result': 'PENDING',
-      });
+      if (res.status == 200 && res.data != null && res.data['call_sid'] != null) {
+        exotelPlaced = true;
+        final dialed = res.data['dialed_phone'] ?? 'Elder SIM';
+        say('Cellular call placed via Exotel! Dialing $dialed…');
+      } else {
+        final err = res.data is Map ? (res.data['error'] ?? res.data['message']) : null;
+        exotelError = err?.toString() ?? 'HTTP ${res.status} error from Exotel';
+      }
+    } catch (e) {
+      exotelError = e.toString();
     }
-    say('Calling Elder phone now. Waiting for keypad answers on their phone…');
+
+    if (!exotelPlaced) {
+      debugPrint('Exotel cellular call failed: $exotelError');
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.phone_missed, color: Color(0xFFB93832)),
+                SizedBox(width: 8),
+                Expanded(child: Text('Cellular Call Not Placed', style: TextStyle(fontSize: 18))),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'The cellular GSM call to the elder\'s SIM could not be placed through Exotel:',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEECEB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFF5C2C0)),
+                  ),
+                  child: Text(
+                    exotelError ?? 'Unknown error',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF8B1A10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'How to resolve:\n'
+                  '• In Exotel trial accounts, verify the destination mobile number in Exotel Console -> Whitelisted numbers.\n'
+                  '• Go to Customize -> Grandparent phone details and ensure a valid 10-digit number is saved.\n'
+                  '• Check that EXOTEL_SID, EXOTEL_KEY, EXOTEL_TOKEN & EXOPHONE secrets are set in Supabase.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF5A665E), height: 1.35),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  db.from('checkins').insert({
+                    'elder_id': elderId,
+                    'source': fromSchedule ? 'scheduled_call' : 'call',
+                    'call_status': 'INITIATED',
+                    'result': 'PENDING',
+                  });
+                  say('Simulating call inside app only…');
+                },
+                child: const Text('Fallback to In-App Call'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   // Mock-adapter path so the whole workflow can also be triggered from one phone if needed.

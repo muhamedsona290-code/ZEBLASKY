@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,23 +24,114 @@ class _E extends State<ElderScreen> {
   bool _hadConcern = false;
   String? _ivrPrompt;
   late final AudioPlayer _audioPlayer;
+  late final AudioPlayer _ringPlayer;
+  Timer? _vibrateTimer;
+  Timer? _schedTimer;
+  bool _isRinging = false;
 
   @override
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
+    _ringPlayer = AudioPlayer();
+    _schedTimer = Timer.periodic(const Duration(seconds: 10), (_) => _checkDueSchedules());
+    _checkDueSchedules();
   }
 
   @override
   void dispose() {
+    _stopRingtone();
+    _schedTimer?.cancel();
+    _ringPlayer.dispose();
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  void _startRingtone() async {
+    if (_isRinging) return;
+    _isRinging = true;
+    try {
+      await _ringPlayer.setReleaseMode(ReleaseMode.loop);
+      // High-quality public telecom telephone ring sound
+      await _ringPlayer.play(UrlSource('https://actions.google.com/sounds/v1/telephones/phone_ring.ogg'));
+    } catch (_) {}
+    _vibrateTimer?.cancel();
+    _vibrateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  void _stopRingtone() {
+    if (!_isRinging) return;
+    _isRinging = false;
+    _vibrateTimer?.cancel();
+    _vibrateTimer = null;
+    try {
+      _ringPlayer.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _checkDueSchedules() async {
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final due = await db
+          .from('call_schedules')
+          .select()
+          .eq('elder_id', elderId)
+          .eq('active', true)
+          .lte('next_run_at', nowIso)
+          .limit(5);
+
+      for (final s in due) {
+        final done = ((s['runs_done'] as num?)?.toInt() ?? 0) + 1;
+        final intervalMin = (s['interval_minutes'] as num?)?.toInt() ?? 1440;
+        final repeatCount = (s['repeat_count'] as num?)?.toInt() ?? 1;
+
+        final rawNext = s['next_run_at'] != null ? DateTime.tryParse(s['next_run_at']) : null;
+        final baseTime = rawNext ?? DateTime.now();
+        final nextIso = baseTime.add(Duration(minutes: intervalMin)).toUtc().toIso8601String();
+
+        await db.from('call_schedules').update({
+          'runs_done': done,
+          'next_run_at': nextIso,
+          'active': done < repeatCount,
+        }).eq('id', s['id']);
+
+        bool exotelPlaced = false;
+        try {
+          final res = await db.functions.invoke('start-call', body: {'elder_id': elderId});
+          if (res.status == 200 && res.data != null && res.data['call_sid'] != null) {
+            exotelPlaced = true;
+            debugPrint('Elder screen: Cellular call successfully dispatched via Exotel');
+          } else {
+            debugPrint('Elder screen: Exotel error HTTP ${res.status}: ${res.data}');
+          }
+        } catch (e) {
+          debugPrint('Elder screen: Exotel invoke exception: $e');
+        }
+
+        if (!exotelPlaced) {
+          await db.from('checkins').insert({
+            'elder_id': elderId,
+            'source': 'scheduled_call',
+            'call_status': 'INITIATED',
+            'result': 'PENDING',
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Elder screen schedule error: $e');
+    }
   }
 
   void _playPrompt(String? audioUrl) {
     if (audioUrl == null || audioUrl.isEmpty) return;
     try {
-      if (audioUrl.startsWith('http')) {
+      if (audioUrl.startsWith('data:audio')) {
+        final comma = audioUrl.indexOf(',');
+        final b64 = comma != -1 ? audioUrl.substring(comma + 1) : audioUrl;
+        _audioPlayer.play(BytesSource(base64Decode(b64)));
+      } else if (audioUrl.startsWith('http')) {
         _audioPlayer.play(UrlSource(audioUrl));
       } else {
         _audioPlayer.play(DeviceFileSource(audioUrl));
@@ -69,6 +162,7 @@ class _E extends State<ElderScreen> {
       ])));
 
   Future<void> _acceptCall(Map<String, dynamic> call) async {
+    _stopRingtone();
     HapticFeedback.mediumImpact();
     List<Map<String, dynamic>> qs = [];
     try {
@@ -98,6 +192,7 @@ class _E extends State<ElderScreen> {
   }
 
   Future<void> _declineOrHangup(Map<String, dynamic> call) async {
+    _stopRingtone();
     _audioPlayer.stop();
     HapticFeedback.lightImpact();
     final id = call['id'] as String;
@@ -347,6 +442,13 @@ class _E extends State<ElderScreen> {
                       (['RINGING', 'INITIATED', 'SCHEDULED', 'ANSWERED'].contains(last['call_status']))
                   ? last
                   : null;
+
+              final isIncoming = activeCall != null && !_answered;
+              if (isIncoming) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _startRingtone());
+              } else {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _stopRingtone());
+              }
               final t = last == null ? null : DateTime.parse(last['created_at']).toLocal();
               final today = t != null && DateUtils.isSameDay(t, DateTime.now());
               final fine = today && last!['result'] == 'FINE';

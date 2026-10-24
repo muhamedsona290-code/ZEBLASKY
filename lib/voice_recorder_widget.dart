@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
 import 'main.dart';
 
@@ -102,32 +104,52 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
     setState(() => _isUploading = true);
     try {
       final file = File(localFilePath);
+      if (!file.existsSync()) {
+        throw Exception('Recorded file not found at $localFilePath');
+      }
       final bytes = await file.readAsBytes();
-      final fileName = 'prompt_${elderId}_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final base64Audio = base64Encode(bytes);
+      final dataUri = 'data:audio/mp4;base64,$base64Audio';
 
-      // Ensure storage upload
-      await db.storage.from('audio-prompts').uploadBinary(
-        fileName,
-        bytes,
-      );
+      // Immediate guaranteed audio format
+      String finalAudioUrl = dataUri;
 
-      final publicUrl = db.storage.from('audio-prompts').getPublicUrl(fileName);
+      // Try uploading to Supabase Storage if available
+      try {
+        final fileName = 'prompt_${elderId}_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await db.storage.from('audio-prompts').uploadBinary(
+          fileName,
+          bytes,
+          fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: true),
+        );
+        final publicUrl = db.storage.from('audio-prompts').getPublicUrl(fileName);
+        if (publicUrl.isNotEmpty) {
+          finalAudioUrl = publicUrl;
+        }
+      } catch (storageErr) {
+        debugPrint('Storage bucket note: $storageErr (using embedded audio fallback)');
+      }
+
       setState(() {
-        _remoteUrl = publicUrl;
+        _remoteUrl = finalAudioUrl;
       });
-      widget.onAudioChanged(publicUrl);
+      widget.onAudioChanged(finalAudioUrl);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: Color(0xFF2E7D32), content: Text('Voice prompt uploaded successfully!')),
+          const SnackBar(
+            backgroundColor: Color(0xFF2E7D32),
+            content: Text('✓ Voice prompt recorded and ready to save!'),
+          ),
         );
       }
     } catch (e) {
-      // In case storage bucket isn't set up yet, fallback to saving local path or data
-      widget.onAudioChanged(_remoteUrl ?? localFilePath);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Recorded locally. (Storage sync note: $e)')),
+          SnackBar(
+            backgroundColor: Colors.red.shade800,
+            content: Text('Recording error: $e'),
+          ),
         );
       }
     } finally {
@@ -144,7 +166,13 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
     if (_localPath != null && File(_localPath!).existsSync()) {
       await _player.play(DeviceFileSource(_localPath!));
     } else if (_remoteUrl != null && _remoteUrl!.isNotEmpty) {
-      await _player.play(UrlSource(_remoteUrl!));
+      if (_remoteUrl!.startsWith('data:audio')) {
+        final comma = _remoteUrl!.indexOf(',');
+        final b64 = comma != -1 ? _remoteUrl!.substring(comma + 1) : _remoteUrl!;
+        await _player.play(BytesSource(base64Decode(b64)));
+      } else {
+        await _player.play(UrlSource(_remoteUrl!));
+      }
     }
   }
 

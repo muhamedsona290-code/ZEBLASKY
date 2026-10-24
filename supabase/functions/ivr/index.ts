@@ -23,6 +23,19 @@ Deno.serve(async (req) => {
   const key = (get("digits") ?? get("Digits") ?? "").replace(/"/g, "").trim();
 
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // --- SERVE AUDIO STREAM FOR EXOTEL (step=audio) ---
+  if (step === "audio" && qid) {
+    const { data: q } = await db.from("questions").select("audio_url").eq("id", qid).single();
+    if (q?.audio_url?.startsWith("data:audio")) {
+      const comma = q.audio_url.indexOf(",");
+      const b64 = comma !== -1 ? q.audio_url.substring(comma + 1) : q.audio_url;
+      const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      return new Response(bin, { headers: { "Content-Type": "audio/mp4" } });
+    }
+    return text("not found", 404);
+  }
+
   const { data: c } = await db.from("checkins").select("*").eq("call_sid", sid).maybeSingle();
   if (!c) return text("unknown call", 404);
 
@@ -36,7 +49,12 @@ Deno.serve(async (req) => {
   if (step === "prompt") {
     if (!remaining.length) return text("Thank you. Goodbye.");
     const q = remaining[0];
-    if (q.audio_url) return text(q.audio_url);
+    if (q.audio_url) {
+      if (q.audio_url.startsWith("data:audio")) {
+        return text(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ivr?k=${secret}&step=audio&qid=${q.id}`);
+      }
+      return text(q.audio_url);
+    }
     const optsText = (q.options as any[]).map((o) => `Press ${o.key} for ${o.label}`).join(". ");
     return text(`${q.text}. ${optsText}.`);
   }

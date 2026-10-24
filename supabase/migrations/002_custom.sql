@@ -32,7 +32,20 @@ create policy "Public Audio Access" on storage.objects for select using (bucket_
 create policy "Allow Audio Uploads" on storage.objects for insert with check (bucket_id = 'audio-prompts');
 create policy "Allow Audio Updates" on storage.objects for update using (bucket_id = 'audio-prompts');
 
--- Server timer: every minute, ask run-schedules to place due calls. Replace SECRET with your WEBHOOK_SECRET.
+-- Server timer: every minute, ask run-schedules to place due calls.
 create extension if not exists pg_net;
-select cron.schedule('koode-run-schedules','* * * * *',
- $$select net.http_post(url:='https://gyxiihsdwhwjzgxjnmeg.supabase.co/functions/v1/run-schedules?k=SECRET')$$);
+create extension if not exists pg_cron;
+
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'koode-run-schedules') then
+    perform cron.unschedule('koode-run-schedules');
+  end if;
+exception when others then null;
+end $$;
+
+select cron.schedule(
+  'koode-run-schedules',
+  '* * * * *',
+  $$select net.http_post(url:='https://gyxiihsdwhwjzgxjnmeg.supabase.co/functions/v1/run-schedules?k=koode123')$$
+);
