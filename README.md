@@ -112,28 +112,6 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-##  Quick Setup
 
-1. **Database:** Run `supabase/migrations/001_koode.sql` and `002_custom.sql` in Supabase SQL Editor.
-2. **Secrets:** In Supabase **Project Settings $\rightarrow$ Edge Functions $\rightarrow$ Secrets**, configure:
-   ```env
-   EXOTEL_SID=zeblasky1
-   EXOTEL_KEY=your_key
-   EXOTEL_TOKEN=your_token
-   EXOPHONE=09513886363
-   EXOTEL_APP_ID=your_app_id
-   EXOTEL_HOST=api.in.exotel.com
-   WEBHOOK_SECRET=koode123
-   ```
-3. **Deploy Functions:**
-   ```bash
-   supabase functions deploy start-call --no-verify-jwt
-   supabase functions deploy exotel-webhook --no-verify-jwt
-   supabase functions deploy run-schedules --no-verify-jwt
-   supabase functions deploy ivr --no-verify-jwt
-   ```
-4. **Run App:** `flutter pub get && flutter run`
-
----
 
 **Team ZEBLASKY** · Koode 💚 (Since 2026)
