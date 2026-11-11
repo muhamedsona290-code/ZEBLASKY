@@ -9,7 +9,7 @@
 
 ---
 
-##  Overview
+## Overview
 
 **Koode (കൂടെ)** is designed for elderly parents and grandparents living independently in India. Unlike conventional apps that require seniors to learn smartphone interfaces and maintain internet connectivity, Koode reaches elders through **automated cellular phone calls in Malayalam**. 
 
@@ -30,7 +30,7 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-##  Technical Architecture
+## Technical Architecture
 
 ```
                        ┌──────────────────────────────┐
@@ -63,7 +63,7 @@ Elders simply answer on their regular phone keypad:
 ## Core Working Features (`main`)
 
 ### 1. Cellular GSM Telephony (Exotel IVR)
-- **Direct SIM Dialing:** Dispatches real telephone calls over cellular networks from an Exotel ExoPhone (`09513886363`) directly to the elder's phone.
+- **Direct SIM Dialing:** Dispatches real telephone calls over cellular networks from an Exotel ExoPhone directly to the elder's phone.
 - **Indian Number Sanitization:** Automatically formats numbers with `0` prefixing (`0XXXXXXXXXX`) and strips spaces/hyphens for Indian telecom compliance.
 - **Dual-Cluster Routing:** Connects with automatic failover across `api.in.exotel.com` (Mumbai) and `api.exotel.com`.
 - **Diagnostic Feedback:** Surfaces clear alerts for telecom errors (e.g., trial whitelist status) instead of silent mock fallbacks.
@@ -96,12 +96,12 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
-##  2-Minute Judge Walkthrough
+## 2-Minute Judge Walkthrough
 
 ### Mode A: Real Cellular Call Test
 1. Launch app (`flutter run`) $\rightarrow$ tap **Family Phone**.
 2. Tap **Customize (Tune)** $\rightarrow$ scroll to **Grandparent phone details**.
-3. Save your real mobile number (e.g. `+918714127772`) with Consent **ON**.
+3. Save your real mobile number (e.g. `+91XXXXXXXXXX`) with Consent **ON**.
 4. Tap **"Call Lakshmi Amma now"**.
 5. Your physical phone will ring with an incoming GSM call from Exotel. Answer, listen to the Malayalam prompt, and press **`1`** or **`2`** on your keypad to watch the dashboard update live!
 
@@ -112,6 +112,28 @@ Elders simply answer on their regular phone keypad:
 
 ---
 
+## Quick Setup
 
+1. **Database:** Run `supabase/migrations/001_koode.sql` and `002_custom.sql` in Supabase SQL Editor.
+2. **Secrets:** In Supabase **Project Settings $\rightarrow$ Edge Functions $\rightarrow$ Secrets**, configure:
+   ```env
+   EXOTEL_SID=your_exotel_sid
+   EXOTEL_KEY=your_exotel_api_key
+   EXOTEL_TOKEN=your_exotel_api_token
+   EXOPHONE=your_exophone_number
+   EXOTEL_APP_ID=your_exotel_app_id
+   EXOTEL_HOST=api.in.exotel.com
+   WEBHOOK_SECRET=your_webhook_secret
+   ```
+3. **Deploy Functions:**
+   ```bash
+   supabase functions deploy start-call --no-verify-jwt
+   supabase functions deploy exotel-webhook --no-verify-jwt
+   supabase functions deploy run-schedules --no-verify-jwt
+   supabase functions deploy ivr --no-verify-jwt
+   ```
+4. **Run App:** `flutter pub get && flutter run`
+
+---
 
 **Team ZEBLASKY** · Koode 💚 (Since 2026)
