@@ -786,7 +786,7 @@ class _ElderPhoneState extends State<_ElderPhone> {
           const SizedBox(height: 16),
           TextField(controller: _name, decoration: const InputDecoration(labelText: 'Elder name', border: OutlineInputBorder())),
           const SizedBox(height: 16),
-          TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone number (e.g. +918714127772)', hintText: '+919876543210', border: OutlineInputBorder(), helperText: 'Enter real phone number. Must be whitelisted in Exotel trial to receive cellular calls.')),
+          TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone number (e.g. +919876543210)', hintText: '+919876543210', border: OutlineInputBorder(), helperText: 'Enter real phone number. Must be whitelisted in Exotel trial to receive cellular calls.')),
           const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
